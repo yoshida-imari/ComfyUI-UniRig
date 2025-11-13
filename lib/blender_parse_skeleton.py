@@ -126,23 +126,40 @@ else:
 
     # Create edges (bones connect head to tail)
     edges = []
+    bone_to_head_vertex = []  # Map bone index to head vertex index
+
     for i in range(len(bone_heads)):
         head_idx = position_map[('head', i)]
         tail_idx = position_map[('tail', i)]
         edges.append([head_idx, tail_idx])
+        bone_to_head_vertex.append(head_idx)
 
     edges = np.array(edges, dtype=np.int32)
 
+    # Create parent array: for each bone, store parent bone index (or -1 if root)
+    parents = np.full(len(bones), -1, dtype=np.int32)
+    for bone_idx, parent_idx in bone_parents.items():
+        parents[bone_idx] = parent_idx
+
     print(f"[Blender Skeleton Parse] Extracted {len(vertices)} unique joint positions, {len(edges)} bones")
+    print(f"[Blender Skeleton Parse] Hierarchy: {len(bones)} bones with {len([p for p in parents if p >= 0])} parent relationships")
 
 # Save skeleton data
 os.makedirs(os.path.dirname(output_npz) if os.path.dirname(output_npz) else '.', exist_ok=True)
 
-np.savez_compressed(
-    output_npz,
-    vertices=vertices.astype(np.float32),
-    edges=edges.astype(np.int32),
-)
+# Prepare data to save
+save_data = {
+    'vertices': vertices.astype(np.float32),
+    'edges': edges.astype(np.int32),
+}
+
+# Add hierarchy data if armature was found
+if armatures:
+    save_data['bone_names'] = np.array(bone_names, dtype=object)
+    save_data['bone_parents'] = parents
+    save_data['bone_to_head_vertex'] = np.array(bone_to_head_vertex, dtype=np.int32)
+
+np.savez_compressed(output_npz, **save_data)
 
 print(f"[Blender Skeleton Parse] Saved to: {output_npz}")
 print("[Blender Skeleton Parse] Done!")

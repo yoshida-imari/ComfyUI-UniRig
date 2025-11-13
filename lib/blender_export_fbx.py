@@ -55,15 +55,19 @@ try:
     parents = data['parents']  # Plain list, keep as-is
     names = data['names']  # Plain list, keep as-is
 
-    # Optional data - convert to numpy if present
-    vertices = np.array(data['vertices'], dtype=np.float32) if 'vertices' in data else None
-    faces = np.array(data['faces'], dtype=np.int32) if 'faces' in data else None
-    skin = np.array(data['skin'], dtype=np.float32) if 'skin' in data else None
-    tails = np.array(data['tails'], dtype=np.float32) if 'tails' in data else None
+    # Optional data - convert to numpy if present and not None
+    vertices = np.array(data['vertices'], dtype=np.float32) if data.get('vertices') is not None else None
+    faces = np.array(data['faces'], dtype=np.int32) if data.get('faces') is not None else None
+    skin = np.array(data['skin'], dtype=np.float32) if data.get('skin') is not None else None
+    tails = np.array(data['tails'], dtype=np.float32) if data.get('tails') is not None else None
 
     print(f"[Blender FBX Export] Loaded skeleton with {len(joints)} joints")
+    print(f"[Blender FBX Export] Joints shape: {joints.shape}")
+    print(f"[Blender FBX Export] Tails: {'None' if tails is None else f'shape {tails.shape}'}")
     if vertices is not None:
         print(f"[Blender FBX Export] Found mesh with {len(vertices)} vertices")
+    if skin is not None:
+        print(f"[Blender FBX Export] Skin weights shape: {skin.shape}")
 except Exception as e:
     print(f"[Blender FBX Export] Failed to load pickle: {e}")
     import traceback
@@ -113,117 +117,128 @@ if vertices is not None:
 
 # Create armature
 print("[Blender FBX Export] Creating armature...")
-bpy.ops.object.armature_add(enter_editmode=True)
-armature = bpy.data.armatures.get('Armature')
-edit_bones = armature.edit_bones
-
-J = joints.shape[0]
-if tails is None:
-    tails = joints.copy()
-    tails[:, 2] += extrude_size
-
-connects = [False for _ in range(J)]
-children = defaultdict(list)
-for i in range(1, J):
-    if parents[i] is not None and parents[i] != -1:
-        children[parents[i]].append(i)
-
-if tails is not None:
-    if use_extrude_bone:
-        for i in range(J):
-            if len(children[i]) != 1 and extrude_from_parent and i != 0:
-                if parents[i] is not None and parents[i] != -1:
-                    pjoint = joints[parents[i]]
-                    joint = joints[i]
-                    d = joint - pjoint
-                    if np.linalg.norm(d) < 0.000001:
-                        d = np.array([0., 0., 1.])  # in case son.head == parent.head
-                    else:
-                        d = d / np.linalg.norm(d)
-                    tails[i] = joint + d * extrude_size
-    if use_connect_unique_child:
-        for i in range(J):
-            if len(children[i]) == 1:
-                child = children[i][0]
-                tails[i] = joints[child]
-            if parents[i] is not None and parents[i] != -1 and len(children[parents[i]]) == 1:
-                connects[i] = True
-
-# Create root bone
-if add_root:
-    bone_root = edit_bones.get('Bone')
-    bone_root.name = 'Root'
-    bone_root.tail = Vector((joints[0, 0], joints[0, 1], joints[0, 2]))
-else:
-    bone_root = edit_bones.get('Bone')
-    bone_root.name = names[0]
-    bone_root.head = Vector((joints[0, 0], joints[0, 1], joints[0, 2]))
-    bone_root.tail = Vector((joints[0, 0], joints[0, 1], joints[0, 2] + extrude_size))
-
-# Create bones
-def extrude_bone(edit_bones, name, parent_name, head, tail, connect):
-    bone = edit_bones.new(name)
-    bone.head = Vector((head[0], head[1], head[2]))
-    bone.tail = Vector((tail[0], tail[1], tail[2]))
-    bone.name = name
-    parent_bone = edit_bones.get(parent_name)
-    bone.parent = parent_bone
-    bone.use_connect = connect
-    assert not np.isnan(head).any(), f"nan found in head of bone {name}"
-    assert not np.isnan(tail).any(), f"nan found in tail of bone {name}"
-
-for i in range(J):
-    if add_root is False and i == 0:
-        continue
+try:
+    bpy.ops.object.armature_add(enter_editmode=True)
+    armature = bpy.data.armatures.get('Armature')
     edit_bones = armature.edit_bones
-    pname = 'Root' if parents[i] is None or parents[i] == -1 else names[parents[i]]
-    extrude_bone(edit_bones, names[i], pname, joints[i], tails[i], connects[i])
 
-# Update bone positions
-for i in range(J):
-    bone = edit_bones.get(names[i])
-    bone.head = Vector((joints[i, 0], joints[i, 1], joints[i, 2]))
-    bone.tail = Vector((tails[i, 0], tails[i, 1], tails[i, 2]))
+    J = joints.shape[0]
+    if tails is None:
+        print(f"[Blender FBX Export] Tails not provided, auto-generating...")
+        tails = joints.copy()
+        tails[:, 2] += extrude_size
+        print(f"[Blender FBX Export] Generated tails shape: {tails.shape}")
 
-# Add skinning weights if vertices and skin provided
-if vertices is not None and skin is not None:
-    print("[Blender FBX Export] Adding skinning weights...")
-    # Must set to object mode to enable parent_set
-    bpy.ops.object.mode_set(mode='OBJECT')
-    objects = bpy.data.objects
-    for o in bpy.context.selected_objects:
-        o.select_set(False)
-    ob = objects['character']
-    arm = bpy.data.objects['Armature']
-    ob.select_set(True)
-    arm.select_set(True)
-    bpy.ops.object.parent_set(type='ARMATURE_NAME')
+    connects = [False for _ in range(J)]
+    children = defaultdict(list)
+    for i in range(1, J):
+        if parents[i] is not None and parents[i] != -1:
+            children[parents[i]].append(i)
 
-    vis = []
-    for x in ob.vertex_groups:
-        vis.append(x.name)
+    if tails is not None:
+        if use_extrude_bone:
+            for i in range(J):
+                if len(children[i]) != 1 and extrude_from_parent and i != 0:
+                    if parents[i] is not None and parents[i] != -1:
+                        pjoint = joints[parents[i]]
+                        joint = joints[i]
+                        d = joint - pjoint
+                        if np.linalg.norm(d) < 0.000001:
+                            d = np.array([0., 0., 1.])  # in case son.head == parent.head
+                        else:
+                            d = d / np.linalg.norm(d)
+                        tails[i] = joint + d * extrude_size
+        if use_connect_unique_child:
+            for i in range(J):
+                if len(children[i]) == 1:
+                    child = children[i][0]
+                    tails[i] = joints[child]
+                if parents[i] is not None and parents[i] != -1 and len(children[parents[i]]) == 1:
+                    connects[i] = True
 
-    # Sparsify
-    argsorted = np.argsort(-skin, axis=1)
-    vertex_group_reweight = skin[np.arange(skin.shape[0])[..., None], argsorted]
+    # Create root bone
+    if add_root:
+        bone_root = edit_bones.get('Bone')
+        bone_root.name = 'Root'
+        bone_root.tail = Vector((joints[0, 0], joints[0, 1], joints[0, 2]))
+    else:
+        bone_root = edit_bones.get('Bone')
+        bone_root.name = names[0]
+        bone_root.head = Vector((joints[0, 0], joints[0, 1], joints[0, 2]))
+        bone_root.tail = Vector((joints[0, 0], joints[0, 1], joints[0, 2] + extrude_size))
 
-    group_per_vertex = data.get('group_per_vertex', -1)
-    if group_per_vertex == -1:
-        group_per_vertex = vertex_group_reweight.shape[-1]
+    # Create bones
+    def extrude_bone(edit_bones, name, parent_name, head, tail, connect):
+        bone = edit_bones.new(name)
+        bone.head = Vector((head[0], head[1], head[2]))
+        bone.tail = Vector((tail[0], tail[1], tail[2]))
+        bone.name = name
+        parent_bone = edit_bones.get(parent_name)
+        bone.parent = parent_bone
+        bone.use_connect = connect
+        assert not np.isnan(head).any(), f"nan found in head of bone {name}"
+        assert not np.isnan(tail).any(), f"nan found in tail of bone {name}"
 
-    do_not_normalize = data.get('do_not_normalize', False)
-    if not do_not_normalize:
-        vertex_group_reweight = vertex_group_reweight / vertex_group_reweight[..., :group_per_vertex].sum(axis=1)[..., None]
+    for i in range(J):
+        if add_root is False and i == 0:
+            continue
+        edit_bones = armature.edit_bones
+        pname = 'Root' if parents[i] is None or parents[i] == -1 else names[parents[i]]
+        extrude_bone(edit_bones, names[i], pname, joints[i], tails[i], connects[i])
 
-    for v, w in enumerate(skin):
-        for ii in range(group_per_vertex):
-            i = argsorted[v, ii]
-            if i >= J:
-                continue
-            n = names[i]
-            if n not in vis:
-                continue
-            ob.vertex_groups[n].add([v], vertex_group_reweight[v, ii], 'REPLACE')
+    # Update bone positions
+    for i in range(J):
+        bone = edit_bones.get(names[i])
+        bone.head = Vector((joints[i, 0], joints[i, 1], joints[i, 2]))
+        bone.tail = Vector((tails[i, 0], tails[i, 1], tails[i, 2]))
+
+    # Add skinning weights if vertices and skin provided
+    if vertices is not None and skin is not None:
+        print("[Blender FBX Export] Adding skinning weights...")
+        # Must set to object mode to enable parent_set
+        bpy.ops.object.mode_set(mode='OBJECT')
+        objects = bpy.data.objects
+        for o in bpy.context.selected_objects:
+            o.select_set(False)
+        ob = objects['character']
+        arm = bpy.data.objects['Armature']
+        ob.select_set(True)
+        arm.select_set(True)
+        bpy.ops.object.parent_set(type='ARMATURE_NAME')
+
+        vis = []
+        for x in ob.vertex_groups:
+            vis.append(x.name)
+
+        # Sparsify
+        argsorted = np.argsort(-skin, axis=1)
+        vertex_group_reweight = skin[np.arange(skin.shape[0])[..., None], argsorted]
+
+        group_per_vertex = data.get('group_per_vertex', -1)
+        if group_per_vertex == -1:
+            group_per_vertex = vertex_group_reweight.shape[-1]
+
+        do_not_normalize = data.get('do_not_normalize', False)
+        if not do_not_normalize:
+            vertex_group_reweight = vertex_group_reweight / vertex_group_reweight[..., :group_per_vertex].sum(axis=1)[..., None]
+
+        for v, w in enumerate(skin):
+            for ii in range(group_per_vertex):
+                i = argsorted[v, ii]
+                if i >= J:
+                    continue
+                n = names[i]
+                if n not in vis:
+                    continue
+                ob.vertex_groups[n].add([v], vertex_group_reweight[v, ii], 'REPLACE')
+
+    print("[Blender FBX Export] ✓ Armature created successfully")
+
+except Exception as e:
+    print(f"[Blender FBX Export] Armature creation failed: {e}")
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
 
 # Export to FBX
 print("[Blender FBX Export] Exporting to FBX...")

@@ -20,6 +20,9 @@ ENV/
 *.swo
 .DS_Store
 
+# Jupyter
+.ipynb_checkpoints/
+
 # Temp files
 *.tmp
 *.bak
