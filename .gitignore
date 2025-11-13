@@ -28,9 +28,6 @@ ENV/
 # Blender installation (auto-downloaded)
 lib/blender/
 
-# UniRig code (should be cloned separately, not committed)
-lib/unirig/
-
 # Model checkpoints and cache
 *.ckpt
 *.pth
