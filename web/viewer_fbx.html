@@ -242,6 +242,8 @@
         let skeletonHelper = null;
         let bones = [];
         let boneGizmos = [];
+        let boneLines = [];  // Connection lines between parent-child bones
+        let pivotIndicator = null;  // Rotation pivot indicator
         let selectedBone = null;
         let restPoseData = [];
         let defaultCameraPosition = new THREE.Vector3(2, 2, 2);
@@ -277,10 +279,152 @@
                 disposeObject(skeletonHelper);
             }
             boneGizmos.forEach(gizmo => disposeObject(gizmo));
+            boneLines.forEach(line => disposeObject(line));
+            if (pivotIndicator) {
+                disposeObject(pivotIndicator);
+            }
             renderer.dispose();
             controls.dispose();
             transformControls.dispose();
         });
+
+        // Create rotation pivot indicator
+        function createPivotIndicator() {
+            if (pivotIndicator) {
+                scene.remove(pivotIndicator);
+                disposeObject(pivotIndicator);
+            }
+
+            // Create a group for the pivot indicator
+            pivotIndicator = new THREE.Group();
+
+            // Create three rings for X, Y, Z axes
+            const ringGeometry = new THREE.TorusGeometry(boneGizmoSize * 2, boneGizmoSize * 0.15, 8, 32);
+
+            // X axis ring (red)
+            const xRing = new THREE.Mesh(ringGeometry, new THREE.MeshBasicMaterial({
+                color: 0xff4444,
+                transparent: true,
+                opacity: 0.8,
+                depthTest: false
+            }));
+            xRing.rotation.y = Math.PI / 2;
+            pivotIndicator.add(xRing);
+
+            // Y axis ring (green)
+            const yRing = new THREE.Mesh(ringGeometry, new THREE.MeshBasicMaterial({
+                color: 0x44ff44,
+                transparent: true,
+                opacity: 0.8,
+                depthTest: false
+            }));
+            yRing.rotation.x = Math.PI / 2;
+            pivotIndicator.add(yRing);
+
+            // Z axis ring (blue)
+            const zRing = new THREE.Mesh(ringGeometry, new THREE.MeshBasicMaterial({
+                color: 0x4444ff,
+                transparent: true,
+                opacity: 0.8,
+                depthTest: false
+            }));
+            pivotIndicator.add(zRing);
+
+            // Center sphere
+            const centerGeometry = new THREE.SphereGeometry(boneGizmoSize * 0.4, 12, 12);
+            const centerSphere = new THREE.Mesh(centerGeometry, new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.9,
+                depthTest: false
+            }));
+            pivotIndicator.add(centerSphere);
+
+            pivotIndicator.visible = false;
+            scene.add(pivotIndicator);
+            console.log('[UniRig FBX Viewer] Created rotation pivot indicator');
+        }
+
+        // Update pivot indicator position
+        function updatePivotIndicator() {
+            if (!pivotIndicator || !selectedBone) {
+                if (pivotIndicator) pivotIndicator.visible = false;
+                return;
+            }
+
+            const worldPos = new THREE.Vector3();
+            selectedBone.getWorldPosition(worldPos);
+            pivotIndicator.position.copy(worldPos);
+            pivotIndicator.visible = document.getElementById('showSkeleton').checked;
+        }
+
+        // Create bone connection lines (thick lines between parent-child)
+        function createBoneLines() {
+            console.log('[UniRig FBX Viewer] Creating bone connection lines');
+
+            // Clear existing lines
+            boneLines.forEach(line => {
+                scene.remove(line);
+                disposeObject(line);
+            });
+            boneLines = [];
+
+            if (bones.length === 0) return;
+
+            // Create thick lines between parent-child bones
+            const lineMaterial = new THREE.LineBasicMaterial({
+                color: 0x00ffaa,
+                linewidth: 2,
+                depthTest: document.getElementById('xraySkeleton').checked ? false : true,
+                transparent: true,
+                opacity: 0.7
+            });
+
+            bones.forEach((bone, index) => {
+                if (bone.parent && bone.parent.isBone) {
+                    const parentPos = new THREE.Vector3();
+                    const childPos = new THREE.Vector3();
+
+                    bone.parent.getWorldPosition(parentPos);
+                    bone.getWorldPosition(childPos);
+
+                    const points = [parentPos, childPos];
+                    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                    const line = new THREE.Line(geometry, lineMaterial.clone());
+
+                    line.userData.boneIndex = index;
+                    line.userData.bone = bone;
+
+                    scene.add(line);
+                    boneLines.push(line);
+                }
+            });
+
+            console.log('[UniRig FBX Viewer] Created', boneLines.length, 'bone connection lines');
+        }
+
+        // Update bone connection lines positions
+        function updateBoneLines() {
+            boneLines.forEach((line) => {
+                const bone = line.userData.bone;
+                if (bone && bone.parent && bone.parent.isBone) {
+                    const parentPos = new THREE.Vector3();
+                    const childPos = new THREE.Vector3();
+
+                    bone.parent.getWorldPosition(parentPos);
+                    bone.getWorldPosition(childPos);
+
+                    const positions = line.geometry.attributes.position;
+                    positions.setXYZ(0, parentPos.x, parentPos.y, parentPos.z);
+                    positions.setXYZ(1, childPos.x, childPos.y, childPos.z);
+                    positions.needsUpdate = true;
+
+                    // Update x-ray mode
+                    const xray = document.getElementById('xraySkeleton').checked;
+                    line.material.depthTest = !xray;
+                }
+            });
+        }
 
         // Create bone gizmos (clickable spheres at joints)
         function createBoneGizmos() {
@@ -323,6 +467,12 @@
             });
 
             console.log('[UniRig FBX Viewer] Created', boneGizmos.length, 'bone gizmos');
+
+            // Create pivot indicator after knowing gizmo size
+            createPivotIndicator();
+
+            // Create bone connection lines
+            createBoneLines();
         }
 
         // Update bone gizmo positions
@@ -337,6 +487,10 @@
                 const xray = document.getElementById('xraySkeleton').checked;
                 gizmo.material.depthTest = !xray;
             });
+
+            // Also update bone lines and pivot indicator
+            updateBoneLines();
+            updatePivotIndicator();
         }
 
         // Save rest pose
@@ -441,6 +595,16 @@
                 disposeObject(gizmo);
             });
             boneGizmos = [];
+            boneLines.forEach(line => {
+                scene.remove(line);
+                disposeObject(line);
+            });
+            boneLines = [];
+            if (pivotIndicator) {
+                scene.remove(pivotIndicator);
+                disposeObject(pivotIndicator);
+                pivotIndicator = null;
+            }
             bones = [];
             restPoseData = [];
             transformControls.detach();
@@ -662,6 +826,9 @@
                 transformControls.attach(bone);
                 selectedBone = bone;
 
+                // Show pivot indicator at bone position
+                updatePivotIndicator();
+
                 console.log('[UniRig FBX Viewer] Selected bone:', bone.name || bone.type);
                 statusEl.textContent = `Selected: ${bone.name || 'Bone ' + clickedGizmo.userData.boneIndex}`;
             } else {
@@ -673,6 +840,10 @@
                         g.material.color.setHex(0xffaa00);
                         g.material.opacity = 0.8;
                     });
+
+                    // Hide pivot indicator
+                    if (pivotIndicator) pivotIndicator.visible = false;
+
                     statusEl.textContent = `${bones.length} bones`;
                 }
             }
@@ -693,6 +864,13 @@
             boneGizmos.forEach(gizmo => {
                 gizmo.visible = e.target.checked;
             });
+            boneLines.forEach(line => {
+                line.visible = e.target.checked;
+            });
+            // Update pivot indicator visibility
+            if (pivotIndicator && selectedBone) {
+                pivotIndicator.visible = e.target.checked;
+            }
             console.log('[UniRig FBX Viewer] Bone gizmos visible:', boneGizmos.length);
         });
 

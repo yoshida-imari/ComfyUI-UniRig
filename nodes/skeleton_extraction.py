@@ -49,6 +49,13 @@ class UniRigExtractSkeleton:
                     "default": "VAST-AI/UniRig",
                     "tooltip": "HuggingFace model ID or local path (ignored if skeleton_model provided)"
                 }),
+                "target_face_count": ("INT", {
+                    "default": 50000,
+                    "min": 10000,
+                    "max": 500000,
+                    "step": 10000,
+                    "tooltip": "Target face count for mesh decimation. Higher = preserve more detail, slower. Default: 50000"
+                }),
             }
         }
 
@@ -57,7 +64,7 @@ class UniRigExtractSkeleton:
     FUNCTION = "extract"
     CATEGORY = "UniRig"
 
-    def extract(self, trimesh, seed, skeleton_model=None, checkpoint="VAST-AI/UniRig"):
+    def extract(self, trimesh, seed, skeleton_model=None, checkpoint="VAST-AI/UniRig", target_face_count=None):
         """Extract skeleton using UniRig."""
         total_start = time.time()
         print(f"[UniRigExtractSkeleton] Starting skeleton extraction...")
@@ -104,6 +111,8 @@ class UniRigExtractSkeleton:
             # Step 1: Extract/preprocess mesh with Blender
             step_start = time.time()
             print(f"[UniRigExtractSkeleton] Step 1: Preprocessing mesh with Blender...")
+            actual_face_count = target_face_count if target_face_count is not None else TARGET_FACE_COUNT
+            print(f"[UniRigExtractSkeleton] Using target face count: {actual_face_count}")
             blender_cmd = [
                 BLENDER_EXE,
                 "--background",
@@ -111,7 +120,7 @@ class UniRigExtractSkeleton:
                 "--",
                 input_path,
                 npz_path,
-                str(TARGET_FACE_COUNT)
+                str(actual_face_count)
             ]
 
             try:
