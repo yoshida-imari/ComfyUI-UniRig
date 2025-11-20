@@ -39,12 +39,14 @@ jobs:
         python tests/code/smoke_test.py
       env:
         PYTHONPATH: ${{ github.workspace }}
+        UNIRIG_SKIP_BLENDER_INSTALL: "1"
 
     - name: Run smoke tests with pytest
       run: |
         pytest tests/code/smoke_test.py -v --tb=short
       env:
         PYTHONPATH: ${{ github.workspace }}
+        UNIRIG_SKIP_BLENDER_INSTALL: "1"
 
     - name: Run integration tests
       timeout-minutes: 25

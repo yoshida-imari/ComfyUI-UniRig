@@ -86,8 +86,10 @@ if BLENDER_DIR.exists():
         os.environ['BLENDER_EXE'] = BLENDER_EXE
         print(f"[UniRig] Found Blender: {BLENDER_EXE}")
 
-# Install Blender if not found
-if not BLENDER_EXE:
+# Install Blender if not found (unless disabled via env var)
+SKIP_BLENDER_INSTALL = os.environ.get('UNIRIG_SKIP_BLENDER_INSTALL', '0') == '1'
+
+if not BLENDER_EXE and not SKIP_BLENDER_INSTALL:
     print("[UniRig] Blender not found, installing...")
     try:
         # Import from parent package
@@ -103,6 +105,8 @@ if not BLENDER_EXE:
             print("[UniRig] Warning: Blender installation failed")
     except Exception as e:
         print(f"[UniRig] Warning: Could not install Blender: {e}")
+elif not BLENDER_EXE and SKIP_BLENDER_INSTALL:
+    print("[UniRig] Blender not found, auto-install skipped (UNIRIG_SKIP_BLENDER_INSTALL=1)")
 
 # Add local UniRig to path
 if UNIRIG_PATH not in sys.path:

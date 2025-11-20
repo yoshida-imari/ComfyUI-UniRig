@@ -3,9 +3,13 @@ Smoke test for ComfyUI-UniRig
 Tests basic module import functionality without requiring ComfyUI or real models
 """
 
+import os
 import sys
 import traceback
 from pathlib import Path
+
+# Disable Blender auto-installation during smoke tests
+os.environ['UNIRIG_SKIP_BLENDER_INSTALL'] = '1'
 
 # Add custom node directory to path
 _custom_node_dir = Path(__file__).parent.parent.parent
