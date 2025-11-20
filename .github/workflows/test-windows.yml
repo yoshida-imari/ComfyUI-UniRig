@@ -32,6 +32,7 @@ jobs:
         pip install torch --index-url https://download.pytorch.org/whl/cpu
         pip install pytest pillow numpy trimesh pyyaml python-box
         pip install -r requirements-dev.txt
+        playwright install --with-deps chromium
 
     - name: Run smoke tests
       run: |
