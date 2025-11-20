@@ -8,7 +8,7 @@ import traceback
 from pathlib import Path
 
 # Add custom node directory to path
-_custom_node_dir = Path(__file__).parent.parent
+_custom_node_dir = Path(__file__).parent.parent.parent
 if str(_custom_node_dir) not in sys.path:
     sys.path.insert(0, str(_custom_node_dir))
 
