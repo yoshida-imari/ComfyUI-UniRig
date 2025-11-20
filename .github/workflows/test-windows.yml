@@ -1,4 +1,4 @@
-name: Linux - Installation Tests
+name: Windows - Installation Tests
 
 on:
   push:
@@ -7,10 +7,10 @@ on:
     branches: [main, master, dev]
 
 jobs:
-  linux-installation-tests:
-    name: Linux / Installation Tests / Python 3.10
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+  windows-installation-tests:
+    name: Windows / Installation Tests / Python 3.10
+    runs-on: windows-latest
+    timeout-minutes: 15
     strategy:
       matrix:
         python-version: ["3.10"]
@@ -50,13 +50,13 @@ jobs:
     - name: Test summary
       if: always()
       run: |
-        echo "## Linux Installation Test Results" >> $GITHUB_STEP_SUMMARY
-        echo "✅ Platform: Ubuntu Latest" >> $GITHUB_STEP_SUMMARY
-        echo "✅ Python: 3.10" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Tests Completed:" >> $GITHUB_STEP_SUMMARY
-        echo "- Dependencies install successfully" >> $GITHUB_STEP_SUMMARY
-        echo "- torch-cluster and torch-scatter install via install.py" >> $GITHUB_STEP_SUMMARY
-        echo "- All imports work correctly" >> $GITHUB_STEP_SUMMARY
-        echo "- Config and constants modules load" >> $GITHUB_STEP_SUMMARY
-        echo "- Node class structures validated" >> $GITHUB_STEP_SUMMARY
+        echo "## Windows Installation Test Results" >> $env:GITHUB_STEP_SUMMARY
+        echo "✅ Platform: Windows Latest" >> $env:GITHUB_STEP_SUMMARY
+        echo "✅ Python: 3.10" >> $env:GITHUB_STEP_SUMMARY
+        echo "" >> $env:GITHUB_STEP_SUMMARY
+        echo "### Tests Completed:" >> $env:GITHUB_STEP_SUMMARY
+        echo "- Dependencies install successfully" >> $env:GITHUB_STEP_SUMMARY
+        echo "- torch-cluster and torch-scatter install via install.py" >> $env:GITHUB_STEP_SUMMARY
+        echo "- All imports work correctly" >> $env:GITHUB_STEP_SUMMARY
+        echo "- Config and constants modules load" >> $env:GITHUB_STEP_SUMMARY
+        echo "- Node class structures validated" >> $env:GITHUB_STEP_SUMMARY
