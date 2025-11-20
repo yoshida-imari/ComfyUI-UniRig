@@ -175,6 +175,40 @@ def sample_skeleton():
     }
 
 
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_directories():
+    """Ensure test directories exist"""
+    import tempfile
+
+    # Create temporary directories for tests
+    temp_dirs = [
+        "/tmp/test_models",
+        "/tmp/comfy_temp",
+        "/tmp/comfy_output",
+        "/tmp/comfy_input"
+    ]
+
+    for dir_path in temp_dirs:
+        os.makedirs(dir_path, exist_ok=True)
+
+    yield
+
+    # Note: We don't clean up to allow inspection of test outputs
+    # GitHub Actions will clean up automatically
+
+
+@pytest.fixture
+def cpu_optimized_params():
+    """Provide CPU-optimized parameters for integration tests"""
+    return {
+        "target_face_count": 10000,   # Reduced from 50000
+        "voxel_grid_size": 128,       # Reduced from 196
+        "num_samples": 16384,         # Reduced from 32768
+        "vertex_samples": 4096,       # Reduced from 8192
+        "cache_to_gpu": False,        # Force CPU
+    }
+
+
 def pytest_configure(config):
     """Configure pytest with custom markers"""
     config.addinivalue_line(

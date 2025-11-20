@@ -21,9 +21,6 @@ ENV/
 *.swo
 .DS_Store
 
-# Jupyter
-.ipynb_checkpoints/
-
 # Temp files
 *.tmp
 *.bak
@@ -40,5 +37,7 @@ lib/blender/
 checkpoints/
 
 # Test and data files
+.pytest_cache/
 test_*.py
 /tmp/
+tests/outputs/

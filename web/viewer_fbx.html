@@ -638,51 +638,6 @@
                         if (child.isSkinnedMesh) {
                             console.log('[UniRig FBX Viewer] Found SkinnedMesh:', child.name);
 
-                            // DEBUG: Log material and texture information
-                            console.log('[UniRig FBX Viewer] DEBUG - Material info:');
-                            if (!child.material) {
-                                console.log('[UniRig FBX Viewer] DEBUG - No material found on mesh');
-                            } else if (Array.isArray(child.material)) {
-                                console.log('[UniRig FBX Viewer] DEBUG - Multiple materials:', child.material.length);
-                                child.material.forEach((mat, idx) => {
-                                    console.log(`[UniRig FBX Viewer] DEBUG - Material[${idx}]:`, {
-                                        type: mat.type,
-                                        color: mat.color ? mat.color.getHexString() : 'none',
-                                        map: mat.map ? `Texture(${mat.map.image?.width}x${mat.map.image?.height})` : 'none',
-                                        normalMap: mat.normalMap ? 'present' : 'none',
-                                        roughnessMap: mat.roughnessMap ? 'present' : 'none',
-                                        metalnessMap: mat.metalnessMap ? 'present' : 'none',
-                                        emissiveMap: mat.emissiveMap ? 'present' : 'none',
-                                        aoMap: mat.aoMap ? 'present' : 'none'
-                                    });
-                                });
-                            } else {
-                                const mat = child.material;
-                                console.log('[UniRig FBX Viewer] DEBUG - Single material:', {
-                                    type: mat.type,
-                                    color: mat.color ? mat.color.getHexString() : 'none',
-                                    map: mat.map ? `Texture(${mat.map.image?.width}x${mat.map.image?.height})` : 'none',
-                                    normalMap: mat.normalMap ? 'present' : 'none',
-                                    roughnessMap: mat.roughnessMap ? 'present' : 'none',
-                                    metalnessMap: mat.metalnessMap ? 'present' : 'none',
-                                    emissiveMap: mat.emissiveMap ? 'present' : 'none',
-                                    aoMap: mat.aoMap ? 'present' : 'none'
-                                });
-                            }
-
-                            // DEBUG: Check for UV attributes
-                            if (child.geometry) {
-                                const hasUV = child.geometry.attributes.uv ? true : false;
-                                const hasUV2 = child.geometry.attributes.uv2 ? true : false;
-                                console.log('[UniRig FBX Viewer] DEBUG - Geometry UV attributes:', {
-                                    hasUV: hasUV,
-                                    uvCount: hasUV ? child.geometry.attributes.uv.count : 0,
-                                    hasUV2: hasUV2,
-                                    vertexCount: child.geometry.attributes.position?.count || 0,
-                                    faceCount: child.geometry.index ? child.geometry.index.count / 3 : 0
-                                });
-                            }
-
                             // Ensure material is visible
                             if (!child.material) {
                                 child.material = new THREE.MeshStandardMaterial({
@@ -694,24 +649,9 @@
                             } else if (Array.isArray(child.material)) {
                                 child.material.forEach(mat => {
                                     mat.skinning = true;
-                                    // DEBUG: Log material transparency properties
-                                    console.log('[UniRig FBX Viewer] Material transparency:', JSON.stringify({
-                                        name: mat.name,
-                                        transparent: mat.transparent,
-                                        opacity: mat.opacity,
-                                        depthWrite: mat.depthWrite
-                                    }));
                                 });
                             } else {
                                 child.material.skinning = true;
-                                // DEBUG: Log material transparency properties
-                                const transparencyInfo = {
-                                    name: child.material.name,
-                                    transparent: child.material.transparent,
-                                    opacity: child.material.opacity,
-                                    depthWrite: child.material.depthWrite
-                                };
-                                console.log('[UniRig FBX Viewer] Material transparency:', JSON.stringify(transparencyInfo));
                             }
 
                             // Create skeleton helper
@@ -1091,9 +1031,6 @@
                 // Add mesh to scene
                 exportScene.add(bakedMesh);
 
-                console.log('[UniRig FBX Viewer] GLB Export - Baked pose into geometry (no skeleton)');
-                console.log('[UniRig FBX Viewer] GLB Export - Converted material:', oldMat.type, '→ MeshStandardMaterial');
-
                 // Create GLTFExporter instance
                 const exporter = new GLTFExporter();
 
@@ -1103,7 +1040,6 @@
                     async (gltf) => {
                         // Convert to blob
                         const blob = new Blob([gltf], { type: 'application/octet-stream' });
-                        console.log('[UniRig FBX Viewer] GLB Export - Blob size:', (blob.size / 1024).toFixed(2), 'KB');
 
                         // Upload to ComfyUI output directory
                         const formData = new FormData();
