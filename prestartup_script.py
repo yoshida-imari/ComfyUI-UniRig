@@ -52,65 +52,10 @@ def copy_asset_files():
         traceback.print_exc()
 
 
-def copy_workflow_files():
-    """Copy workflow examples to user/default/workflows/ with 'UNIRIG-' prefix in filename"""
-    try:
-        # Create target directory
-        USER_WORKFLOWS_DIR.mkdir(parents=True, exist_ok=True)
-
-        # Process each workflow JSON file
-        if WORKFLOWS_DIR.exists():
-            for workflow_file in WORKFLOWS_DIR.glob("*.json"):
-                # Add UNIRIG- prefix to the filename
-                new_filename = f"UNIRIG-{workflow_file.name}"
-                workflow_target = USER_WORKFLOWS_DIR / new_filename
-
-                if not workflow_target.exists():
-                    try:
-                        # Load the workflow JSON
-                        with open(workflow_file, 'r', encoding='utf-8') as f:
-                            workflow_data = json.load(f)
-
-                        # Add "UniRig -" prefix to the workflow name if it has one
-                        if isinstance(workflow_data, dict):
-                            # Check for common workflow name fields
-                            if 'name' in workflow_data and workflow_data['name']:
-                                if not workflow_data['name'].startswith('UniRig -'):
-                                    workflow_data['name'] = f"UniRig - {workflow_data['name']}"
-                            elif 'title' in workflow_data and workflow_data['title']:
-                                if not workflow_data['title'].startswith('UniRig -'):
-                                    workflow_data['title'] = f"UniRig - {workflow_data['title']}"
-                            # If no name/title field exists, add one
-                            elif 'name' not in workflow_data:
-                                workflow_data['name'] = f"UniRig - {workflow_file.stem}"
-
-                        # Save the modified workflow
-                        with open(workflow_target, 'w', encoding='utf-8') as f:
-                            json.dump(workflow_data, f, indent=2)
-
-                        print(f"[UniRig] Copied workflow '{workflow_file.name}' to {new_filename}")
-
-                    except json.JSONDecodeError as e:
-                        print(f"[UniRig] Warning: Could not parse {workflow_file.name}: {e}")
-                        # Fallback: just copy the file as-is
-                        shutil.copy2(str(workflow_file), str(workflow_target))
-                        print(f"[UniRig] Copied workflow (without modification) to {new_filename}")
-                else:
-                    print(f"[UniRig] Workflow already exists: {new_filename}")
-        else:
-            print(f"[UniRig] Warning: Workflows directory not found at {WORKFLOWS_DIR}")
-
-    except Exception as e:
-        print(f"[UniRig] Error copying workflow files: {e}")
-        import traceback
-        traceback.print_exc()
-
-
 # Execute setup tasks
 try:
     print("[UniRig] Running prestartup script...")
     copy_asset_files()
-    copy_workflow_files()
     print("[UniRig] Prestartup script completed.")
 except Exception as e:
     print(f"[UniRig] Error during prestartup: {e}")

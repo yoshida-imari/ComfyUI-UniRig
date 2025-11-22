@@ -1,129 +1,9 @@
 {
   "id": "15f6c038-9249-494a-9d33-9030831736fb",
   "revision": 0,
-  "last_node_id": 31,
+  "last_node_id": 32,
   "last_link_id": 61,
   "nodes": [
-    {
-      "id": 31,
-      "type": "UniRigApplySkinningMLNew",
-      "pos": [
-        283.57873648990864,
-        -446.8605710714405
-      ],
-      "size": [
-        285.78515625,
-        194
-      ],
-      "flags": {},
-      "order": 4,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "normalized_mesh",
-          "type": "TRIMESH",
-          "link": 57
-        },
-        {
-          "name": "skeleton",
-          "type": "SKELETON",
-          "link": 58
-        },
-        {
-          "name": "skinning_model",
-          "type": "UNIRIG_SKINNING_MODEL",
-          "link": 59
-        }
-      ],
-      "outputs": [
-        {
-          "name": "fbx_output_path",
-          "type": "STRING",
-          "links": [
-            60
-          ]
-        },
-        {
-          "name": "texture_preview",
-          "type": "IMAGE",
-          "links": [
-            61
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfyui-unirig",
-        "ver": "929a05a77d2704d288fbc5dde09efa41fafb5934",
-        "Node name for S&R": "UniRigApplySkinningMLNew"
-      },
-      "widgets_values": [
-        "rigged_human",
-        196,
-        32768,
-        8192,
-        0.5
-      ]
-    },
-    {
-      "id": 28,
-      "type": "UniRigExtractSkeletonNew",
-      "pos": [
-        -35.042169135091214,
-        -447.3555745089397
-      ],
-      "size": [
-        283.763671875,
-        146
-      ],
-      "flags": {},
-      "order": 3,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "trimesh",
-          "type": "TRIMESH",
-          "link": 48
-        },
-        {
-          "name": "skeleton_model",
-          "type": "UNIRIG_SKELETON_MODEL",
-          "link": 49
-        }
-      ],
-      "outputs": [
-        {
-          "name": "normalized_mesh",
-          "type": "TRIMESH",
-          "links": [
-            57
-          ]
-        },
-        {
-          "name": "skeleton",
-          "type": "SKELETON",
-          "links": [
-            58
-          ]
-        },
-        {
-          "name": "texture_preview",
-          "type": "IMAGE",
-          "links": [
-            56
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfyui-unirig",
-        "ver": "bfa311d14c5dce0eeeda4c773f643041119f1f77",
-        "Node name for S&R": "UniRigExtractSkeletonNew"
-      },
-      "widgets_values": [
-        42,
-        "fixed",
-        50000
-      ]
-    },
     {
       "id": 10,
       "type": "UniRigPreviewRiggedMesh",
@@ -324,6 +204,127 @@
         "input",
         "3d/realistic_male_character.glb"
       ]
+    },
+    {
+      "id": 31,
+      "type": "UniRigApplySkinningMLNew",
+      "pos": [
+        283.57873648990864,
+        -446.8605710714405
+      ],
+      "size": [
+        285.78515625,
+        194
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "normalized_mesh",
+          "type": "TRIMESH",
+          "link": 57
+        },
+        {
+          "name": "skeleton",
+          "type": "SKELETON",
+          "link": 58
+        },
+        {
+          "name": "skinning_model",
+          "type": "UNIRIG_SKINNING_MODEL",
+          "link": 59
+        }
+      ],
+      "outputs": [
+        {
+          "name": "fbx_output_path",
+          "type": "STRING",
+          "links": [
+            60
+          ]
+        },
+        {
+          "name": "texture_preview",
+          "type": "IMAGE",
+          "links": [
+            61
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-unirig",
+        "ver": "929a05a77d2704d288fbc5dde09efa41fafb5934",
+        "Node name for S&R": "UniRigApplySkinningMLNew"
+      },
+      "widgets_values": [
+        "rigged_human",
+        196,
+        32768,
+        8192,
+        0.5
+      ]
+    },
+    {
+      "id": 28,
+      "type": "UniRigExtractSkeletonNew",
+      "pos": [
+        -35.042169135091214,
+        -447.3555745089397
+      ],
+      "size": [
+        283.763671875,
+        170
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "trimesh",
+          "type": "TRIMESH",
+          "link": 48
+        },
+        {
+          "name": "skeleton_model",
+          "type": "UNIRIG_SKELETON_MODEL",
+          "link": 49
+        }
+      ],
+      "outputs": [
+        {
+          "name": "normalized_mesh",
+          "type": "TRIMESH",
+          "links": [
+            57
+          ]
+        },
+        {
+          "name": "skeleton",
+          "type": "SKELETON",
+          "links": [
+            58
+          ]
+        },
+        {
+          "name": "texture_preview",
+          "type": "IMAGE",
+          "links": [
+            56
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-unirig",
+        "ver": "bfa311d14c5dce0eeeda4c773f643041119f1f77",
+        "Node name for S&R": "UniRigExtractSkeletonNew"
+      },
+      "widgets_values": [
+        42,
+        "fixed",
+        "articulationxl",
+        50000
+      ]
     }
   ],
   "links": [
@@ -396,13 +397,13 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.620921323059155,
+      "scale": 0.8264462809917356,
       "offset": [
-        865.6492687444668,
-        660.0831890891864
+        584.0812856194665,
+        757.5951795579361
       ]
     },
-    "frontendVersion": "1.28.8"
+    "frontendVersion": "1.30.6"
   },
   "version": 0.4
 }

@@ -331,39 +331,10 @@ class UniRigExtractSkeletonNew:
             print(f"[UniRigExtractSkeletonNew] Extracted {len(all_joints)} joints, {len(edges)} bones")
             print(f"[UniRigExtractSkeletonNew] Skeleton already normalized by UniRig to range [{all_joints.min():.3f}, {all_joints.max():.3f}]")
 
-            # Debug: Show bone names to verify VRoid template
-            if 'bone_names' in skeleton_data:
-                bone_names_array = skeleton_data['bone_names']
-                print(f"[UniRigExtractSkeletonNew] ===== BONE NAMES DEBUG =====")
-                print(f"[UniRigExtractSkeletonNew] Template selected: '{skeleton_template}' (cls={cls_value})")
-                print(f"[UniRigExtractSkeletonNew] Total bones with names: {len(bone_names_array)}")
-                print(f"[UniRigExtractSkeletonNew] First 15 bone names:")
-                for i, name in enumerate(list(bone_names_array)[:15]):
-                    print(f"[UniRigExtractSkeletonNew]   {i+1:2d}. {name}")
-
-                # Check for VRoid pattern
-                vroid_count = sum(1 for name in bone_names_array if str(name).startswith('J_Bip_'))
-                print(f"[UniRigExtractSkeletonNew] VRoid-pattern bones (J_Bip_*): {vroid_count}/{len(bone_names_array)}")
-
-                if vroid_count > 0:
-                    print(f"[UniRigExtractSkeletonNew] ✓ VRoid skeleton naming detected!")
-                else:
-                    print(f"[UniRigExtractSkeletonNew] ⚠ Generic bone naming (bone_N)")
-                print(f"[UniRigExtractSkeletonNew] ==============================")
-            else:
-                print(f"[UniRigExtractSkeletonNew] ⚠ No bone_names in skeleton data")
-
             # Load preprocessing data
-            # Try to load from model output first (has bone names), fall back to preprocessing file
-            model_output_npz = os.path.join(tmpdir, "input", "predict_skeleton.npz")
+            # For mesh/texture: always use raw_data.npz (has texture data)
+            # For skeleton: use parsed FBX output (has correct bone names from model)
             preprocessing_npz = os.path.join(tmpdir, "input", "raw_data.npz")
-
-            if os.path.exists(model_output_npz):
-                preprocess_npz = model_output_npz
-                print(f"[UniRigExtractSkeletonNew] Loading from model output: predict_skeleton.npz (has bone names)")
-            else:
-                preprocess_npz = preprocessing_npz
-                print(f"[UniRigExtractSkeletonNew] Model output not found, using preprocessing file: raw_data.npz")
 
             uv_coords = None
             uv_faces = None
@@ -374,8 +345,10 @@ class UniRigExtractSkeletonNew:
             texture_width = 0
             texture_height = 0
 
-            if os.path.exists(preprocess_npz):
-                preprocess_data = np.load(preprocess_npz, allow_pickle=True)
+            # Load mesh and texture data from preprocessing NPZ (raw_data.npz)
+            if os.path.exists(preprocessing_npz):
+                print(f"[UniRigExtractSkeletonNew] Loading mesh/texture from: raw_data.npz")
+                preprocess_data = np.load(preprocessing_npz, allow_pickle=True)
 
                 # Helper to safely get array field (handles 0-d arrays from None values)
                 def safe_get_array(key):
@@ -408,15 +381,29 @@ class UniRigExtractSkeletonNew:
                     texture_path = str(tex_path)
 
                 # Load texture data if available
-                tex_data = safe_get_array('texture_data_base64')
-                if tex_data is not None and len(str(tex_data)) > 0:
-                        texture_data_base64 = str(tex_data)
-                        tex_format = safe_get_array('texture_format')
-                        texture_format = str(tex_format) if tex_format is not None else 'PNG'
-                        tex_width = safe_get_array('texture_width')
-                        texture_width = int(tex_width) if tex_width is not None else 0
-                        tex_height = safe_get_array('texture_height')
-                        texture_height = int(tex_height) if tex_height is not None else 0
+                # Note: texture fields may be 0-d string scalars, handle them specially
+                if 'texture_data_base64' in preprocess_data:
+                    tex_data = preprocess_data['texture_data_base64']
+                    # Handle both 0-d scalar and regular arrays
+                    if hasattr(tex_data, 'item'):
+                        tex_str = tex_data.item() if tex_data.ndim == 0 else str(tex_data)
+                    else:
+                        tex_str = str(tex_data)
+
+                    if len(tex_str) > 0:
+                        texture_data_base64 = tex_str
+
+                        # Load texture metadata (also handle 0-d scalars)
+                        if 'texture_format' in preprocess_data:
+                            fmt = preprocess_data['texture_format']
+                            texture_format = fmt.item() if hasattr(fmt, 'item') and fmt.ndim == 0 else str(fmt)
+                        if 'texture_width' in preprocess_data:
+                            w = preprocess_data['texture_width']
+                            texture_width = int(w.item() if hasattr(w, 'item') and w.ndim == 0 else w)
+                        if 'texture_height' in preprocess_data:
+                            h = preprocess_data['texture_height']
+                            texture_height = int(h.item() if hasattr(h, 'item') and h.ndim == 0 else h)
+
                         print(f"[UniRigExtractSkeletonNew] Loaded texture: {texture_width}x{texture_height} {texture_format} ({len(texture_data_base64) // 1024}KB base64)")
             else:
                 # Fallback: use trimesh data
@@ -453,13 +440,14 @@ class UniRigExtractSkeletonNew:
                 num_bones = len(bone_parents)
                 parents_list = [None if p == -1 else int(p) for p in bone_parents]
 
-                # Get bone names - prioritize model-generated names from raw_data.npz
+                # Get bone names - prioritize model-generated names from predict_skeleton.npz
                 # The model generates correct semantic names (e.g., VRoid template names)
                 # but Blender parsing may return generic names, so we prefer model names
                 model_bone_names = None
-                if os.path.exists(preprocess_npz):
+                model_output_npz = os.path.join(tmpdir, "input", "predict_skeleton.npz")
+                if os.path.exists(model_output_npz):
                     try:
-                        model_data = np.load(preprocess_npz, allow_pickle=True)
+                        model_data = np.load(model_output_npz, allow_pickle=True)
                         if 'names' in model_data and model_data['names'] is not None:
                             raw_names = model_data['names']
 
@@ -472,7 +460,7 @@ class UniRigExtractSkeletonNew:
                             elif raw_names.ndim == 1:
                                 # Proper 1-D array (expected format after fix)
                                 model_bone_names = [str(name) for name in raw_names]
-                                print(f"[UniRigExtractSkeletonNew] Loaded {len(model_bone_names)} model bone names from raw_data.npz")
+                                print(f"[UniRigExtractSkeletonNew] Loaded {len(model_bone_names)} model bone names from predict_skeleton.npz")
                             else:
                                 print(f"[UniRigExtractSkeletonNew] Warning: names has unexpected shape {raw_names.shape}")
                                 model_bone_names = None

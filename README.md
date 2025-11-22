@@ -36,6 +36,7 @@ https://github.com/user-attachments/assets/f320db66-4323-4993-a46e-87e2717748ef
 - **UniRig: Extract Skeleton** - Extracts skeleton from any 3D mesh using ML
   - Input: TRIMESH mesh, skeleton model
   - Output: Normalized skeleton, normalized mesh, texture preview
+  - **Skeleton Templates**: Choose between `auto` (model decides), `vroid` (VRoid-compatible 52-bone naming), or `articulationxl` (generic/flexible)
 
 ### Skinning
 - **UniRig: Apply Skinning** - Applies ML-based skinning weights to mesh
