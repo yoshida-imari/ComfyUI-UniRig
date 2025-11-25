@@ -132,6 +132,152 @@ def clean_bpy():
 
 clean_bpy()
 
+# === T-POSE CONVERSION FOR SMPL SKELETONS ===
+# Check if this is an SMPL skeleton and convert to T-pose if needed
+# IMPORTANT: This must happen BEFORE mesh creation so vertices are transformed
+SMPL_JOINT_NAMES_CHECK = ['Pelvis', 'L_Hip', 'R_Hip', 'Spine1', 'L_Knee', 'R_Knee',
+                    'Spine2', 'L_Ankle', 'R_Ankle', 'Spine3', 'L_Foot', 'R_Foot',
+                    'Neck', 'L_Collar', 'R_Collar', 'Head', 'L_Shoulder', 'R_Shoulder',
+                    'L_Elbow', 'R_Elbow', 'L_Wrist', 'R_Wrist']
+
+is_smpl_skeleton = len(names) == 22 and all(n in SMPL_JOINT_NAMES_CHECK for n in names)
+
+if is_smpl_skeleton:
+    print("[Blender FBX Export] Detected SMPL skeleton, checking if T-pose conversion needed...")
+
+    # Get arm joint indices
+    l_shoulder_idx = names.index('L_Shoulder')
+    l_elbow_idx = names.index('L_Elbow')
+    l_wrist_idx = names.index('L_Wrist')
+    r_shoulder_idx = names.index('R_Shoulder')
+    r_elbow_idx = names.index('R_Elbow')
+    r_wrist_idx = names.index('R_Wrist')
+
+    l_shoulder = joints[l_shoulder_idx]
+    l_elbow = joints[l_elbow_idx]
+    l_wrist = joints[l_wrist_idx]
+    r_shoulder = joints[r_shoulder_idx]
+    r_elbow = joints[r_elbow_idx]
+    r_wrist = joints[r_wrist_idx]
+
+    # Detect mesh orientation - which axis is lateral (left-right)?
+    shoulder_diff = r_shoulder - l_shoulder
+    print(f"[Blender FBX Export] Shoulder diff (R-L): {shoulder_diff}")
+
+    if abs(shoulder_diff[0]) > abs(shoulder_diff[2]):
+        lateral_axis = 'X'
+        l_tpose_dir = np.array([1.0, 0.0, 0.0])
+        r_tpose_dir = np.array([-1.0, 0.0, 0.0])
+    else:
+        lateral_axis = 'Z'
+        # Left shoulder has smaller Z means left points toward -Z
+        if l_shoulder[2] < r_shoulder[2]:
+            l_tpose_dir = np.array([0.0, 0.0, -1.0])
+            r_tpose_dir = np.array([0.0, 0.0, 1.0])
+        else:
+            l_tpose_dir = np.array([0.0, 0.0, 1.0])
+            r_tpose_dir = np.array([0.0, 0.0, -1.0])
+
+    print(f"[Blender FBX Export] Lateral axis: {lateral_axis}, L_tpose_dir: {l_tpose_dir}, R_tpose_dir: {r_tpose_dir}")
+
+    # Check if already T-posed (arm Y component near zero)
+    l_arm_vec = l_wrist - l_shoulder
+    l_arm_vec_norm = l_arm_vec / (np.linalg.norm(l_arm_vec) + 1e-8)
+
+    if abs(l_arm_vec_norm[1]) < 0.1:
+        print("[Blender FBX Export] Arms already horizontal (T-pose), skipping conversion")
+    else:
+        print(f"[Blender FBX Export] Arms not horizontal (Y component: {l_arm_vec_norm[1]:.3f}), converting to T-pose...")
+
+        # Compute arm lengths
+        l_upper_len = np.linalg.norm(l_elbow - l_shoulder)
+        l_lower_len = np.linalg.norm(l_wrist - l_elbow)
+        r_upper_len = np.linalg.norm(r_elbow - r_shoulder)
+        r_lower_len = np.linalg.norm(r_wrist - r_elbow)
+
+        # Compute new T-pose joint positions
+        new_l_elbow = l_shoulder + l_tpose_dir * l_upper_len
+        new_l_wrist = new_l_elbow + l_tpose_dir * l_lower_len
+        new_r_elbow = r_shoulder + r_tpose_dir * r_upper_len
+        new_r_wrist = new_r_elbow + r_tpose_dir * r_lower_len
+
+        # Compute rotations using mathutils
+        l_arm_vec_v = Vector(l_arm_vec).normalized()
+        new_l_arm_vec = Vector(new_l_wrist - l_shoulder).normalized()
+        l_rotation = l_arm_vec_v.rotation_difference(new_l_arm_vec)
+
+        r_arm_vec = r_wrist - r_shoulder
+        r_arm_vec_v = Vector(r_arm_vec).normalized()
+        new_r_arm_vec = Vector(new_r_wrist - r_shoulder).normalized()
+        r_rotation = r_arm_vec_v.rotation_difference(new_r_arm_vec)
+
+        print(f"[Blender FBX Export] Left arm rotation: {math.degrees(l_rotation.angle):.1f}°")
+        print(f"[Blender FBX Export] Right arm rotation: {math.degrees(r_rotation.angle):.1f}°")
+
+        # Transform mesh vertices if skin weights available
+        if vertices is not None and skin is not None:
+            print(f"[Blender FBX Export] Transforming {len(vertices)} mesh vertices...")
+
+            left_arm_bones = {'L_Shoulder', 'L_Elbow', 'L_Wrist'}
+            right_arm_bones = {'R_Shoulder', 'R_Elbow', 'R_Wrist'}
+
+            # Get bone indices for weight lookup
+            left_bone_indices = [names.index(b) for b in left_arm_bones if b in names]
+            right_bone_indices = [names.index(b) for b in right_arm_bones if b in names]
+
+            transformed_count = 0
+            for v_idx in range(len(vertices)):
+                # Sum weights for left and right arm bones
+                left_weight = sum(skin[v_idx, idx] for idx in left_bone_indices)
+                right_weight = sum(skin[v_idx, idx] for idx in right_bone_indices)
+
+                if left_weight < 0.001 and right_weight < 0.001:
+                    continue
+
+                displacement = np.zeros(3)
+
+                if left_weight > 0.001:
+                    # Rotate around shoulder pivot
+                    rel_pos = vertices[v_idx] - l_shoulder
+                    rotated = np.array(l_rotation @ Vector(rel_pos))
+                    displacement += (rotated - rel_pos) * left_weight
+
+                if right_weight > 0.001:
+                    # Rotate around shoulder pivot
+                    rel_pos = vertices[v_idx] - r_shoulder
+                    rotated = np.array(r_rotation @ Vector(rel_pos))
+                    displacement += (rotated - rel_pos) * right_weight
+
+                vertices[v_idx] += displacement
+                transformed_count += 1
+
+            print(f"[Blender FBX Export] Transformed {transformed_count} vertices")
+
+        # Update joint positions
+        joints[l_elbow_idx] = new_l_elbow
+        joints[l_wrist_idx] = new_l_wrist
+        joints[r_elbow_idx] = new_r_elbow
+        joints[r_wrist_idx] = new_r_wrist
+
+        # Update tails if provided
+        if tails is not None:
+            # Shoulder tails point to elbow
+            tails[l_shoulder_idx] = new_l_elbow
+            tails[r_shoulder_idx] = new_r_elbow
+            # Elbow tails point to wrist
+            tails[l_elbow_idx] = new_l_wrist
+            tails[r_elbow_idx] = new_r_wrist
+            # Wrist tails extend in T-pose direction
+            wrist_tail_len = np.linalg.norm(tails[l_wrist_idx] - joints[l_wrist_idx]) if tails is not None else 0.05
+            tails[l_wrist_idx] = new_l_wrist + l_tpose_dir * wrist_tail_len
+            tails[r_wrist_idx] = new_r_wrist + r_tpose_dir * wrist_tail_len
+
+        print("[Blender FBX Export] ✓ T-pose conversion complete")
+
+        # Debug: show new bounds
+        if vertices is not None:
+            print(f"[Blender FBX Export] T-posed mesh bounds: {vertices.min(axis=0)} to {vertices.max(axis=0)}")
+
 # Make collection
 collection = bpy.data.collections.new('new_collection')
 bpy.context.scene.collection.children.link(collection)
@@ -331,10 +477,7 @@ try:
     # We set roll so that the bone's local coordinate system matches what SMPL expects
     # after the basis transformation: SMPL_local = Basis^T @ Blender_local @ Basis
     # The goal is to set roll so that rotations can be applied with a consistent basis
-    is_smpl_skeleton = all(n in ['Pelvis', 'L_Hip', 'R_Hip', 'Spine1', 'L_Knee', 'R_Knee',
-                                  'Spine2', 'L_Ankle', 'R_Ankle', 'Spine3', 'L_Foot', 'R_Foot',
-                                  'Neck', 'L_Collar', 'R_Collar', 'Head', 'L_Shoulder', 'R_Shoulder',
-                                  'L_Elbow', 'R_Elbow', 'L_Wrist', 'R_Wrist'] for n in names)
+    # Note: is_smpl_skeleton was already computed earlier for T-pose conversion
 
     if is_smpl_skeleton:
         print("[Blender FBX Export] Setting bone rolls for SMPL compatibility...")
