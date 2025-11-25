@@ -314,7 +314,7 @@ class UniRigExtractSkeletonNew:
             )
 
         # Create temp files
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             input_path = os.path.join(tmpdir, "input.glb")
             npz_dir = os.path.join(tmpdir, "input")
             npz_path = os.path.join(npz_dir, "raw_data.npz")

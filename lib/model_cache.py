@@ -60,6 +60,77 @@ from src.system.parse import get_system, get_writer
 _LOADED_MODELS = {}
 
 
+def remap_state_dict(state_dict):
+    """
+    Remap state_dict keys to be compatible with the current environment.
+    Specifically handles Flash Attention (checkpoint) -> Standard Attention (local) conversion.
+    """
+    new_state_dict = {}
+    
+    # Group Wq and Wkv keys
+    attention_groups = {}
+    
+    for key, value in state_dict.items():
+        # Handle Flash Attention Wq/Wkv -> in_proj
+        if ".attention.Wq." in key:
+            parts = key.split(".attention.Wq.")
+            prefix = parts[0] + ".attention."
+            suffix = parts[1] # weight or bias
+            
+            if prefix not in attention_groups:
+                attention_groups[prefix] = {}
+            attention_groups[prefix][f"Wq_{suffix}"] = value
+            continue
+            
+        if ".attention.Wkv." in key:
+            parts = key.split(".attention.Wkv.")
+            prefix = parts[0] + ".attention."
+            suffix = parts[1] # weight or bias
+            
+            if prefix not in attention_groups:
+                attention_groups[prefix] = {}
+            attention_groups[prefix][f"Wkv_{suffix}"] = value
+            continue
+            
+        # Handle out_proj path mismatch
+        # Checkpoint: ...attention.out_proj.weight
+        # Target: ...attention.attn.out_proj.weight
+        if ".attention.out_proj." in key:
+            new_key = key.replace(".attention.out_proj.", ".attention.attn.out_proj.")
+            new_state_dict[new_key] = value
+            continue
+            
+        # Keep other keys as is
+        new_state_dict[key] = value
+        
+    # Process grouped attention weights
+    for prefix, groups in attention_groups.items():
+        # We expect Wq_weight, Wkv_weight, Wq_bias, Wkv_bias
+        
+        # Handle Weights
+        if "Wq_weight" in groups and "Wkv_weight" in groups:
+            wq = groups["Wq_weight"]
+            wkv = groups["Wkv_weight"]
+            # Wq: (embed_dim, embed_dim)
+            # Wkv: (2*embed_dim, embed_dim)
+            # in_proj_weight: (3*embed_dim, embed_dim) -> [q, k, v]
+            
+            in_proj_weight = torch.cat([wq, wkv], dim=0)
+            new_key = prefix + "attn.in_proj_weight"
+            new_state_dict[new_key] = in_proj_weight
+            
+        # Handle Biases
+        if "Wq_bias" in groups and "Wkv_bias" in groups:
+            bq = groups["Wq_bias"]
+            bkv = groups["Wkv_bias"]
+            
+            in_proj_bias = torch.cat([bq, bkv], dim=0)
+            new_key = prefix + "attn.in_proj_bias"
+            new_state_dict[new_key] = in_proj_bias
+            
+    return new_state_dict
+
+
 def load_yaml_config(path: str) -> Box:
     """Load a YAML config file."""
     if path.endswith('.yaml'):
@@ -141,7 +212,12 @@ def load_model_into_memory(model_type: str, task_config_path: str, cache_to_gpu:
                 checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
             else:
                 checkpoint = torch.load(checkpoint_path, map_location='cpu')
-            system.load_state_dict(checkpoint['state_dict'], strict=False)
+            
+            # Remap state_dict if needed (Flash Attention -> Standard Attention)
+            state_dict = checkpoint['state_dict']
+            state_dict = remap_state_dict(state_dict)
+            
+            system.load_state_dict(state_dict, strict=False)
 
             if cache_to_gpu and torch.cuda.is_available():
                 system = system.cuda()
@@ -352,7 +428,8 @@ def run_inference(cache_key: str, request_data: dict) -> dict:
 
         # Run prediction
         checkpoint_path = cached.get("checkpoint_path")
-        trainer.predict(system, datamodule=data, ckpt_path=checkpoint_path, return_predictions=False)
+        # Pass ckpt_path=None to use the already loaded (and potentially patched) system model
+        trainer.predict(system, datamodule=data, ckpt_path=None, return_predictions=False)
 
         # Keep model on GPU after prediction
         if system is not None and cached.get("cache_to_gpu", True) and torch.cuda.is_available():
